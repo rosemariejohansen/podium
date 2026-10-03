@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SortOrder {
+  ASC
+  DESC
+}
+
+enum KeyScope {
+  SCORES_READ
+  SCORES_WRITE
+}
+
+enum ReviewRule {
+  BEATS_TOP_BY_MARGIN
+  RAPID_IMPROVEMENT
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AuditAction {
+  GAME_CREATED
+  GAME_UPDATED
+  GAME_DELETED
+  LEADERBOARD_CREATED
+  LEADERBOARD_UPDATED
+  LEADERBOARD_DELETED
+  LEADERBOARD_RESET
+  KEY_CREATED
+  KEY_REVOKED
+  SCORE_REMOVED
+  REVIEW_APPROVED
+  REVIEW_REJECTED
+}
+
+model User {
+  id             String        @id @default(cuid())
+  githubId       String        @unique
+  login          String
+  avatarUrl      String?
+  createdAt      DateTime      @default(now())
+  games          Game[]
+  auditLogs      AuditLog[]
+  decidedReviews ScoreReview[]
+}
+
+model Game {
+  id           String        @id @default(cuid())
+  ownerId      String
+  owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name         String
+  slug         String        @unique
+  description  String?
+  isPublic     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  leaderboards Leaderboard[]
+  apiKeys      ApiKey[]
+  players      Player[]
+  requestStats RequestStat[]
+  auditLogs    AuditLog[]
+
+  @@index([ownerId])
+}
+
+model Leaderboard {
+  id               String        @id @default(cuid())
+  gameId           String
+  game             Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  slug             String
+  name             String
+  sortOrder        SortOrder
+  unit             String?
+  minScore         BigInt?
+  maxScore         BigInt?
+  reviewMarginPct  Int           @default(25)
+  reviewMinEntries Int           @default(10)
+  createdAt        DateTime      @default(now())
+  scores           Score[]
+  reviews          ScoreReview[]
+
+  @@unique([gameId, slug])
+}
+
+model ApiKey {
+  id         String     @id @default(cuid())
+  gameId     String
+  game       Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name       String
+  prefix     String
+  hash       String     @unique
+  scopes     KeyScope[]
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([gameId])
+}
+
+model Player {
+  id          String        @id @default(cuid())
+  gameId      String
+  game        Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  externalId  String
+  displayName String
+  createdAt   DateTime      @default(now())
+  scores      Score[]
+  reviews     ScoreReview[]
+
+  @@unique([gameId, externalId])
+}
+
+model Score {
+  id            String      @id @default(cuid())
+  leaderboardId String
+  leaderboard   Leaderboard @relation(fields: [leaderboardId], references: [id], onDelete: Cascade)
+  playerId      String
+  player        Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  value         BigInt
+  achievedAt    DateTime
+
+  @@unique([leaderboardId, playerId])
+  @@index([leaderboardId, value, achievedAt])
+}
+
+model ScoreReview {
+  id            String       @id @default(cuid())
+  leaderboardId String
+  leaderboard   Leaderboard  @relation(fields: [leaderboardId], references: [id], onDelete: Cascade)
+  playerId      String
+  player        Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  value         BigInt
+  ruleCode      ReviewRule
+  status        ReviewStatus @default(PENDING)
+  submittedAt   DateTime     @default(now())
+  decidedById   String?
+  decidedBy     User?        @relation(fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt     DateTime?
+
+  @@index([leaderboardId, status])
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorId    String
+  actor      User        @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  gameId     String?
+  game       Game?       @relation(fields: [gameId], references: [id], onDelete: SetNull)
+  action     AuditAction
+  targetType String
+  targetId   String
+  ip         String?
+  meta       Json
+  createdAt  DateTime    @default(now())
+
+  @@index([gameId, createdAt])
+}
+
+model RequestStat {
+  gameId      String
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  bucket      DateTime
+  route       String
+  statusClass String
+  count       Int
+
+  @@id([gameId, bucket, route, statusClass])
+}
