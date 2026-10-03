@@ -1,0 +1,29 @@
+export const ERROR_HTTP_STATUS = {
+  VALIDATION_FAILED: 400,
+  INVALID_API_KEY: 401,
+  KEY_REVOKED: 401,
+  KEY_EXPIRED: 401,
+  INVALID_SERVICE_TOKEN: 401,
+  INSUFFICIENT_SCOPE: 403,
+  QUOTA_EXCEEDED: 403,
+  NOT_FOUND: 404,
+  LEADERBOARD_NOT_FOUND: 404,
+  PLAYER_NOT_FOUND: 404,
+  SLUG_TAKEN: 409,
+  IDEMPOTENCY_IN_PROGRESS: 409,
+  PAYLOAD_TOO_LARGE: 413,
+  IDEMPOTENCY_KEY_REUSED: 422,
+  CONFIRMATION_MISMATCH: 422,
+  RATE_LIMITED: 429,
+  IP_BLOCKED: 429,
+  INTERNAL_ERROR: 500,
+  SERVICE_UNAVAILABLE: 503,
+} as const;
+
+export type ErrorCode = keyof typeof ERROR_HTTP_STATUS;
+
+export const ERROR_CODES = Object.keys(ERROR_HTTP_STATUS) as readonly ErrorCode[];
+
+export interface ApiErrorBody {
+  error: { code: ErrorCode; message: string; details?: unknown; requestId: string };
+}
