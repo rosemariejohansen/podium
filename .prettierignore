@@ -1,0 +1,10 @@
+pnpm-lock.yaml
+**/dist
+**/.next
+**/coverage
+**/generated
+**/prisma/migrations
+sdk/cpp/build
+docs/superpowers
+PRD.md
+.superpowers

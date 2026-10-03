@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.next/
+coverage/
+.turbo/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+!.env.test.example
+.dev-keys/
+apps/api/src/generated/
+playwright-report/
+test-results/
+sdk/cpp/build/
