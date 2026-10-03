@@ -1,0 +1,35 @@
+name: mos-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres-dev
+      MOS_MIGRATOR_PASSWORD: migrator-dev
+      MOS_APP_PASSWORD: app-dev
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./postgres/sql:/mos-sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres -d mos']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--requirepass', 'redis-dev', '--save', '', '--appendonly', 'no']
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'redis-dev', '--no-auth-warning', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

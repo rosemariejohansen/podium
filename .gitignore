@@ -13,3 +13,12 @@ apps/api/src/generated/
 playwright-report/
 test-results/
 sdk/cpp/build/
+
+# Planning docs and AI-assistant files: kept locally, never committed
+PRD.md
+docs/superpowers/
+.superpowers/
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
