@@ -6,6 +6,7 @@ import { EnvModule } from './config/env.module.js';
 import { HealthController } from './health/health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RedisModule } from './redis/redis.module.js';
+import { UsersModule } from './users/users.module.js';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { RedisModule } from './redis/redis.module.js';
     PrismaModule,
     RedisModule,
     LoggerModule.forRootAsync({ inject: [ENV], useFactory: (env: Env) => loggerParams(env) }),
+    UsersModule,
   ],
   controllers: [HealthController],
 })

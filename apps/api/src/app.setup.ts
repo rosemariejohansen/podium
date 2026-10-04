@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AllExceptionsFilter } from './common/errors/all-exceptions.filter.js';
 import { registerBodyParsers } from './common/http/body-parsers.js';
+import { noStoreForPrivateApis } from './common/http/cache-control.js';
 import { requestId } from './common/http/request-id.js';
 import type { Env } from './config/env.js';
 
@@ -14,6 +15,8 @@ export function configureApp(app: NestExpressApplication, env: Env): void {
   app.disable('x-powered-by');
   app.use(requestId);
   app.use(helmet());
+  // Before the body parsers and routes, so 400/401/404/413 error responses carry it too.
+  app.use(noStoreForPrivateApis);
   registerBodyParsers(app);
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableShutdownHooks();
