@@ -9,13 +9,13 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "build": "prisma generate && nest build",
-    "dev": "prisma generate && nest start --watch",
+    "build": "nest build",
+    "dev": "nest start --watch",
     "start": "node dist/main.js",
-    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit --incremental false",
     "lint": "eslint .",
-    "test": "prisma generate && vitest run",
-    "test:e2e": "prisma generate && DOTENV_CONFIG_PATH=.env.test prisma migrate deploy && vitest run --config vitest.config.e2e.ts"
+    "test": "vitest run",
+    "test:e2e": "DOTENV_CONFIG_PATH=.env.test prisma migrate deploy && vitest run --config vitest.config.e2e.ts"
   },
   "dependencies": {
     "@mos/contracts": "workspace:*",
