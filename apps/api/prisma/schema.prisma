@@ -131,6 +131,7 @@ model Score {
 
   @@unique([leaderboardId, playerId])
   @@index([leaderboardId, value, achievedAt])
+  @@index([playerId])
 }
 
 model ScoreReview {
@@ -148,6 +149,7 @@ model ScoreReview {
   decidedAt     DateTime?
 
   @@index([leaderboardId, status])
+  @@index([playerId])
 }
 
 model AuditLog {

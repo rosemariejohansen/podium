@@ -25,3 +25,14 @@ export const ClientIp = createParamDecorator(
   (_: unknown, ctx: ExecutionContext): string | null =>
     ctx.switchToHttp().getRequest<AuthedRequest>().serviceToken.ip,
 );
+
+/** Who is acting, for services that write audit rows. */
+export interface Actor {
+  userId: string;
+  ip: string | null;
+}
+
+export const CurrentActor = createParamDecorator((_: unknown, ctx: ExecutionContext): Actor => {
+  const token = ctx.switchToHttp().getRequest<AuthedRequest>().serviceToken;
+  return { userId: token.sub, ip: token.ip };
+});

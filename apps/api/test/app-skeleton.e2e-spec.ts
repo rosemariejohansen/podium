@@ -12,6 +12,16 @@ describe('API skeleton (e2e)', () => {
     await app.close();
   });
 
+  it('test app already listens, so requests built in advance all reach it', async () => {
+    expect(app.getHttpServer().address()).toMatchObject({ address: '127.0.0.1' });
+    // supertest closes a server it started itself once in-flight requests settle; a request
+    // built before that would then hit a closed port.
+    const first = request(app.getHttpServer()).get('/health');
+    const second = request(app.getHttpServer()).get('/health');
+    expect((await first).status).toBe(200);
+    expect((await second).status).toBe(200);
+  });
+
   it('GET /health is alive and carries a generated request id', async () => {
     const res = await request(app.getHttpServer()).get('/health').expect(200);
     expect(res.body).toEqual({ status: 'ok' });
