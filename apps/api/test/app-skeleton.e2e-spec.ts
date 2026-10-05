@@ -62,6 +62,15 @@ describe('API skeleton (e2e)', () => {
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
+  it('sends Cache-Control: no-store on /v1 in any case, but not on /health (PRD §9.2)', async () => {
+    const v1 = await request(app.getHttpServer()).get('/v1/whatever').expect(404);
+    expect(v1.headers['cache-control']).toBe('no-store');
+    const v1Upper = await request(app.getHttpServer()).get('/V1/whatever').expect(404);
+    expect(v1Upper.headers['cache-control']).toBe('no-store');
+    const health = await request(app.getHttpServer()).get('/health').expect(200);
+    expect(health.headers['cache-control']).toBeUndefined();
+  });
+
   it('serves the OpenAPI document', async () => {
     const res = await request(app.getHttpServer()).get('/docs-json').expect(200);
     expect(res.body.openapi).toMatch(/^3\./);
