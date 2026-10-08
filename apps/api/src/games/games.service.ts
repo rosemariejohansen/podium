@@ -14,8 +14,9 @@ export const MAX_GAMES_PER_USER = 10;
  * Budget for the delete transaction (cascade to boards, players, scores, reviews, stats). Every
  * FK on that path leads an index (PRD §7.1; Score/ScoreReview playerId), so the cascade is fast;
  * this only keeps a safety margin over Prisma's 5 s interactive-transaction default (500 on expiry).
+ * Shared with the leaderboard delete, whose cascade to scores and reviews has the same profile.
  */
-const DELETE_TIMEOUT_MS = 30_000;
+export const DELETE_TIMEOUT_MS = 30_000;
 
 const notFound = () => new AppException('NOT_FOUND', 'Game not found');
 
