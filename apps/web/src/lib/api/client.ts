@@ -30,7 +30,8 @@ interface ApiFetchOptions {
 
 /**
  * Server-side only: calls the NestJS API with a freshly signed service token (PRD AD-3, SEC-WEB-1).
- * `path` must start with a single '/'; callers encode every interpolated segment.
+ * `path` must start with a single '/'; callers pass every interpolated segment through
+ * `pathSegment()` (./path-segment).
  */
 export async function apiFetch<T>(path: string, options: ApiFetchOptions): Promise<T> {
   const env = serverEnv();
