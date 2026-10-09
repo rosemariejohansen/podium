@@ -1,4 +1,4 @@
-import { generateKeyPairSync, randomUUID } from 'node:crypto';
+import { createPublicKey, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { importPKCS8, SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
 import { decodePem, ServiceTokenError, signServiceToken, verifyServiceToken } from './index.js';
@@ -20,6 +20,8 @@ interface ForgeOpts {
   aud?: string;
   iat?: number;
   exp?: number;
+  /** JOSE `typ` header; defaults to 'JWT' like the signer. `null` leaves it out of the header. */
+  typ?: string | null;
   /** Claims to leave out of the token entirely. */
   omit?: string[];
   /** Arbitrary claim overrides (e.g. sub, jti), applied last. */
@@ -40,7 +42,29 @@ async function forge(payload: Record<string, unknown>, opts: ForgeOpts = {}) {
     ...opts.claims,
   };
   for (const claim of opts.omit ?? []) delete body[claim];
-  return new SignJWT(body).setProtectedHeader({ alg: 'EdDSA' }).sign(key);
+  const typ = opts.typ === undefined ? 'JWT' : opts.typ;
+  return new SignJWT(body)
+    .setProtectedHeader({ alg: 'EdDSA', ...(typ === null ? {} : { typ }) })
+    .sign(key);
+}
+
+/** The allow-list's own rejection; without `algorithms: [ALG]` jose still refuses but for other reasons. */
+const ALG_NOT_ALLOWED = /"alg" \(Algorithm\) Header Parameter value not allowed/;
+
+const base64url = (value: string | Uint8Array) => Buffer.from(value).toString('base64url');
+
+/** Claims that pass every check, so a rejection can only come from the header under test. */
+function validClaims(): Record<string, unknown> {
+  const iat = Math.floor(T.getTime() / 1000);
+  return {
+    iss: 'mos-web',
+    aud: 'mos-api',
+    sub: 'u1',
+    scope: 'user',
+    jti: randomUUID(),
+    iat,
+    exp: iat + 60,
+  };
 }
 
 describe('decodePem', () => {
@@ -132,6 +156,42 @@ describe('sign/verify', () => {
     await expect(verifyServiceToken(publicKey, 'not.a.jwt', T)).rejects.toBeInstanceOf(
       ServiceTokenError,
     );
+  });
+
+  it('rejects a token without a typ header, or with typ at+jwt', async () => {
+    // Control: identical claims with typ JWT verify, so only the header differs below.
+    await expect(
+      verifyServiceToken(publicKey, await forge({ scope: 'user' }), T),
+    ).resolves.toBeTruthy();
+    for (const typ of [null, 'at+jwt']) {
+      const token = await forge({ scope: 'user' }, { typ });
+      await expect(verifyServiceToken(publicKey, token, T)).rejects.toThrow(/typ/);
+    }
+  });
+
+  it('rejects an unsigned alg:none token with otherwise valid claims', async () => {
+    const header = base64url(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+    const payload = base64url(JSON.stringify(validClaims()));
+    await expect(verifyServiceToken(publicKey, `${header}.${payload}.`, T)).rejects.toThrow(
+      ALG_NOT_ALLOWED,
+    );
+    // Dropping the empty signature segment altogether is malformed, and must not be accepted either.
+    await expect(verifyServiceToken(publicKey, `${header}.${payload}`, T)).rejects.toBeInstanceOf(
+      ServiceTokenError,
+    );
+  });
+
+  it.each([
+    ['the public key PEM bytes', () => new TextEncoder().encode(publicKey)],
+    [
+      'the public key DER bytes',
+      () => createPublicKey(publicKey).export({ type: 'spki', format: 'der' }),
+    ],
+  ])('rejects an HS256 token signed with %s (algorithm confusion)', async (_label, secret) => {
+    const token = await new SignJWT(validClaims())
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .sign(new Uint8Array(secret()));
+    await expect(verifyServiceToken(publicKey, token, T)).rejects.toThrow(ALG_NOT_ALLOWED);
   });
 
   it.each(['exp', 'iat', 'sub', 'jti'])('rejects a token without %s', async (claim) => {
