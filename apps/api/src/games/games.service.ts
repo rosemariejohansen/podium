@@ -6,7 +6,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { Actor } from '../auth/auth.decorators.js';
 import { AppException } from '../common/errors/app-exception.js';
 import { isUniqueViolation } from '../common/prisma/prisma-errors.js';
-import type { Game } from '../generated/prisma/client.js';
+import type { Game, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { REDIS } from '../redis/redis.module.js';
 import { gameCounts, toGameDto } from './games.mapper.js';
@@ -41,7 +41,8 @@ export class GamesService {
   async list(userId: string): Promise<GameDto[]> {
     const games = await this.prisma.game.findMany({
       where: { ownerId: userId },
-      orderBy: { createdAt: 'desc' },
+      // id breaks createdAt ties, so the list order is deterministic.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: gameCounts(),
     });
     return games.map(toGameDto);
@@ -99,12 +100,21 @@ export class GamesService {
 
   async update(actor: Actor, gameId: string, input: GameUpdateInput): Promise<GameDto> {
     await this.assertOwned(actor.userId, gameId);
+    // Explicit fields: a future contract field must not flow into Prisma unnoticed.
+    // Prisma skips undefined values, so omitted fields stay unchanged.
+    const data = {
+      name: input.name,
+      description: input.description,
+      isPublic: input.isPublic,
+    } satisfies Prisma.GameUpdateInput;
+    // The audit lists what is written (null = cleared), not whatever keys the body carried.
+    const fields = Object.entries(data)
+      .filter(([, value]) => value !== undefined)
+      .map(([field]) => field);
     const game = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.game.update({
         where: { id: gameId },
-        // Explicit fields: a future contract field must not flow into Prisma unnoticed.
-        // Prisma skips undefined values, so omitted fields stay unchanged.
-        data: { name: input.name, description: input.description, isPublic: input.isPublic },
+        data,
         include: gameCounts(),
       });
       await this.audit.record(tx, {
@@ -114,7 +124,7 @@ export class GamesService {
         targetType: 'game',
         targetId: gameId,
         ip: actor.ip,
-        meta: { fields: Object.keys(input) },
+        meta: { fields },
       });
       return updated;
     });

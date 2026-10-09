@@ -110,6 +110,28 @@ describe('games (e2e)', () => {
     expect(res.body.map((g: GameDto) => g.slug)).toEqual(['game-a']);
   });
 
+  it('lists newest first and breaks createdAt ties by id, newest id first', async () => {
+    const same = new Date('2026-01-01T00:00:00.000Z');
+    const older = new Date('2025-12-31T00:00:00.000Z');
+    // Explicit ids, inserted in ascending order: without a tie-break the rows tend to come back in
+    // insertion order, the reverse of the expected one.
+    const rows = [
+      { id: 'tie-a', createdAt: same },
+      { id: 'tie-b', createdAt: same },
+      { id: 'tie-c', createdAt: same },
+      { id: 'tie-z', createdAt: older },
+    ];
+    for (const { id, createdAt } of rows)
+      await prisma.game.create({
+        data: { id, createdAt, ownerId: alice.id, name: id, slug: `slug-${id}` },
+      });
+    const res = await request(server())
+      .get('/internal/games')
+      .set(await as(alice))
+      .expect(200);
+    expect(res.body.map((g: GameDto) => g.id)).toEqual(['tie-c', 'tie-b', 'tie-a', 'tie-z']);
+  });
+
   it('returns the owner’s game as a full GameDto with counts', async () => {
     const { body: created } = await createGame(alice, {
       name: 'Asteroids',
@@ -220,10 +242,31 @@ describe('games (e2e)', () => {
       isPublic: false,
       slug: 'asteroids',
     });
-    const audit = await prisma.auditLog.findFirst({
-      where: { gameId: game.id, action: 'GAME_UPDATED' },
-    });
+    const updated = { gameId: game.id, action: 'GAME_UPDATED' } as const;
+    // Exactly one row (PRD §16.2), not just "a" row.
+    expect(await prisma.auditLog.count({ where: updated })).toBe(1);
+    const audit = await prisma.auditLog.findFirst({ where: updated });
     expect(audit?.meta).toEqual({ fields: ['name', 'description', 'isPublic'] });
+  });
+
+  it('changes only the sent field on a partial PATCH, and audits exactly that field', async () => {
+    const { body: game } = await createGame(alice, {
+      name: 'Asteroids',
+      slug: 'asteroids',
+      description: 'Pew',
+    });
+    const res = await request(server())
+      .patch(`/internal/games/${game.id}`)
+      .set(await as(alice))
+      .send({ isPublic: false })
+      .expect(200);
+    expect(res.body).toMatchObject({ name: 'Asteroids', description: 'Pew', isPublic: false });
+    const stored = await prisma.game.findUniqueOrThrow({ where: { id: game.id } });
+    expect(stored).toMatchObject({ name: 'Asteroids', description: 'Pew', isPublic: false });
+    const updated = { gameId: game.id, action: 'GAME_UPDATED' } as const;
+    expect(await prisma.auditLog.count({ where: updated })).toBe(1);
+    const audit = await prisma.auditLog.findFirst({ where: updated });
+    expect(audit?.meta).toEqual({ fields: ['isPublic'] });
   });
 
   it('refuses to change the slug', async () => {
@@ -282,7 +325,10 @@ describe('games (e2e)', () => {
     it('deletes with the exact name and keeps an audit row that outlives the game', async () => {
       await del({ confirm: 'Asteroids' }).then((r) => expect(r.status).toBe(204));
       expect(await prisma.game.count()).toBe(0);
-      const audit = await prisma.auditLog.findFirst({ where: { action: 'GAME_DELETED' } });
+      // The FK nulled gameId, so the row is found by its target. Exactly one (PRD §16.2).
+      const deleted = { action: 'GAME_DELETED', targetId: game.id } as const;
+      expect(await prisma.auditLog.count({ where: deleted })).toBe(1);
+      const audit = await prisma.auditLog.findFirst({ where: deleted });
       expect(audit).toMatchObject({
         gameId: null,
         targetId: game.id,

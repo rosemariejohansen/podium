@@ -6,7 +6,9 @@ import type { PrismaService } from '../prisma/prisma.service.js';
 import { GamesService } from './games.service.js';
 
 describe('GamesService.update', () => {
-  it('writes only the known update fields, so a future contract field cannot reach Prisma', async () => {
+  const actor = { userId: 'u1', ip: null };
+
+  function setup() {
     const game = {
       id: 'g1',
       ownerId: 'u1',
@@ -29,6 +31,14 @@ describe('GamesService.update', () => {
       audit as unknown as AuditService,
       { del: vi.fn() } as never,
     );
+    /** The `meta.fields` the service handed to the audit log. */
+    const auditedFields = () =>
+      (audit.record.mock.calls[0]?.[1] as { meta: { fields: string[] } }).meta.fields;
+    return { service, update, audit, auditedFields };
+  }
+
+  it('writes only the known update fields, so a future contract field cannot reach Prisma', async () => {
+    const { service, update } = setup();
     // Simulates fields a later gameUpdateSchema change could let through (FR-GAME-4, ownership).
     const input = {
       name: 'B',
@@ -38,7 +48,7 @@ describe('GamesService.update', () => {
       ownerId: 'u2',
     } as unknown as GameUpdateInput;
 
-    await service.update({ userId: 'u1', ip: null }, 'g1', input);
+    await service.update(actor, 'g1', input);
 
     expect(update).toHaveBeenCalledOnce();
     expect(update.mock.calls[0]?.[0]).toMatchObject({ where: { id: 'g1' } });
@@ -46,6 +56,41 @@ describe('GamesService.update', () => {
       name: 'B',
       description: null,
       isPublic: false,
+    });
+  });
+
+  describe('audit meta.fields lists what is written', () => {
+    it('is only the fields in the Prisma data that are not undefined, in data order', async () => {
+      const { service, auditedFields } = setup();
+
+      await service.update(actor, 'g1', { isPublic: false });
+
+      expect(auditedFields()).toEqual(['isPublic']);
+    });
+
+    it('counts null: clearing the description writes the column', async () => {
+      const { service, auditedFields } = setup();
+
+      await service.update(actor, 'g1', { description: null, name: 'B' });
+
+      expect(auditedFields()).toEqual(['name', 'description']);
+    });
+
+    it('leaves out keys that are present in the body but undefined', async () => {
+      const { service, auditedFields } = setup();
+
+      await service.update(actor, 'g1', { name: undefined, isPublic: true });
+
+      expect(auditedFields()).toEqual(['isPublic']);
+    });
+
+    it('does not list a stray key that never reaches Prisma', async () => {
+      const { service, auditedFields } = setup();
+      const input = { name: 'B', slug: 'hijacked', ownerId: 'u2' } as unknown as GameUpdateInput;
+
+      await service.update(actor, 'g1', input);
+
+      expect(auditedFields()).toEqual(['name']);
     });
   });
 });
