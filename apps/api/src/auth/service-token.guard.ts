@@ -1,8 +1,15 @@
-import { type CanActivate, type ExecutionContext, Inject, Injectable } from '@nestjs/common';
+import {
+  type CanActivate,
+  type ExecutionContext,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { verifyServiceToken, type VerifiedServiceToken } from '@mos/service-token';
 import type { Request } from 'express';
 import { AppException } from '../common/errors/app-exception.js';
+import { getRequestId } from '../common/http/request-id.js';
 import { ENV, type Env } from '../config/env.js';
 
 export const SYSTEM_TOKEN_ONLY = 'mos:system-token-only';
@@ -13,6 +20,8 @@ const invalid = (message: string) => new AppException('INVALID_SERVICE_TOKEN', m
 
 @Injectable()
 export class ServiceTokenGuard implements CanActivate {
+  private readonly logger = new Logger(ServiceTokenGuard.name);
+
   constructor(
     @Inject(ENV) private readonly env: Env,
     private readonly reflector: Reflector,
@@ -26,7 +35,12 @@ export class ServiceTokenGuard implements CanActivate {
     let token: VerifiedServiceToken;
     try {
       token = await verifyServiceToken(this.env.SERVICE_TOKEN_PUBLIC_KEY, match[1]);
-    } catch {
+    } catch (error) {
+      // The client only learns 'Invalid service token'; operators get the reason here (a rotated
+      // key, clock skew, a wrong audience). A missing header is probe noise and stays silent.
+      // Only the reason is logged, never the token.
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      this.logger.warn(`Service token rejected (requestId ${getRequestId(req)}): ${reason}`);
       throw invalid('Invalid service token');
     }
 
