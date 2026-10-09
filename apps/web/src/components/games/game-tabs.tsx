@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 export const GAME_TABS: { segment: string; label: string }[] = [
   { segment: '', label: 'Overview' },
   { segment: 'leaderboards', label: 'Leaderboards' },
+  { segment: 'keys', label: 'API keys' },
   { segment: 'settings', label: 'Settings' },
 ];
 
