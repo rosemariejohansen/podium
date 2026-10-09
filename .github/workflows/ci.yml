@@ -25,3 +25,46 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm turbo run lint typecheck test build
+
+  api-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres-ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      NODE_ENV: test
+      LOG_LEVEL: silent
+      DATABASE_URL: postgresql://mos_app:app-ci@localhost:5432/mos_test
+      MIGRATE_DATABASE_URL: postgresql://mos_migrator:migrator-ci@localhost:5432/mos_test
+      REDIS_URL: redis://localhost:6379/1
+      # e2e helpers replace this with a per-file test key; it only has to be present.
+      SERVICE_TOKEN_PUBLIC_KEY: set-by-tests
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create database roles (same SQL as local dev)
+        env:
+          PGPASSWORD: postgres-ci
+        run: >-
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1
+          -v migrator_password=migrator-ci -v app_password=app-ci
+          -f infra/postgres/sql/roles.sql
+      - run: pnpm turbo run test:e2e --filter=@mos/api
