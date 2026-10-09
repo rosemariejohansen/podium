@@ -88,6 +88,7 @@ export async function verifyServiceToken(
       issuer: SERVICE_TOKEN_ISSUER,
       audience: SERVICE_TOKEN_AUDIENCE,
       algorithms: [ALG],
+      typ: 'JWT',
       clockTolerance: SERVICE_TOKEN_CLOCK_SKEW_SECONDS,
       currentDate: now,
       requiredClaims: ['sub', 'jti', 'iat', 'exp'],
