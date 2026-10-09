@@ -12,7 +12,12 @@ export const RESERVED_GAME_SLUGS = [
   'settings',
 ] as const;
 
-const descriptionSchema = z.string().trim().max(280, 'At most 280 characters');
+// A blank description (empty after trimming) is stored as "no description", i.e. null.
+const descriptionSchema = z
+  .string()
+  .trim()
+  .max(280, 'At most 280 characters')
+  .transform((value) => (value === '' ? null : value));
 
 export const gameCreateSchema = z.strictObject({
   name: nameSchema(60),
@@ -20,7 +25,8 @@ export const gameCreateSchema = z.strictObject({
     (slug) => !(RESERVED_GAME_SLUGS as readonly string[]).includes(slug),
     'This slug is reserved',
   ),
-  description: descriptionSchema.optional(),
+  // nullable: the web parses a form with this schema and the API parses the result again.
+  description: descriptionSchema.nullable().optional(),
 });
 export type GameCreateInput = z.output<typeof gameCreateSchema>;
 
