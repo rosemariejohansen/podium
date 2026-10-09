@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { safeRedirect } from '@/lib/auth/safe-redirect';
 import { isTestModeEnabled } from '@/lib/auth/test-mode';
+import { TEST_LOGIN_PATTERN } from './test-login-pattern';
 
 export default async function SignInPage({
   searchParams,
@@ -46,7 +47,7 @@ export default async function SignInPage({
             name="login"
             placeholder="test login"
             required
-            pattern="[a-z0-9-]{1,39}"
+            pattern={TEST_LOGIN_PATTERN}
             aria-label="Test login"
           />
           <Button type="submit" variant="secondary">
