@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
+import { ApiKeysModule } from './api-keys/api-keys.module.js';
 import { loggerParams } from './common/logging/logger.options.js';
 import { ENV, type Env } from './config/env.js';
 import { EnvModule } from './config/env.module.js';
@@ -19,6 +20,7 @@ import { UsersModule } from './users/users.module.js';
     UsersModule,
     GamesModule,
     LeaderboardsModule,
+    ApiKeysModule,
   ],
   controllers: [HealthController],
 })

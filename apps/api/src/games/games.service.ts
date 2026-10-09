@@ -1,11 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { GameCreateInput, GameDto, GameUpdateInput } from '@mos/contracts';
+import type { Redis } from 'ioredis';
+import { apiKeyCacheKey } from '../api-keys/api-key-cache.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { Actor } from '../auth/auth.decorators.js';
 import { AppException } from '../common/errors/app-exception.js';
 import { isUniqueViolation } from '../common/prisma/prisma-errors.js';
 import type { Game } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { REDIS } from '../redis/redis.module.js';
 import { gameCounts, toGameDto } from './games.mapper.js';
 
 export const MAX_GAMES_PER_USER = 10;
@@ -25,6 +28,7 @@ export class GamesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    @Inject(REDIS) private readonly redis: Pick<Redis, 'del'>,
   ) {}
 
   /** 404 unless the game exists and belongs to the user (SEC-API-13). */
@@ -125,7 +129,7 @@ export class GamesService {
         'Type the game name exactly to confirm deletion',
       );
     }
-    await this.prisma.$transaction(
+    const hashes = await this.prisma.$transaction(
       async (tx) => {
         // Written first; the FK sets gameId to NULL when the game row is deleted (FR-GAME-3).
         await this.audit.record(tx, {
@@ -137,9 +141,21 @@ export class GamesService {
           ip: actor.ip,
           meta: { name: game.name, slug: game.slug },
         });
+        // Read before the cascade removes the key rows: after it the hashes are gone.
+        const keys = await tx.apiKey.findMany({
+          where: { gameId: game.id },
+          select: { hash: true },
+        });
         await tx.game.delete({ where: { id: game.id } });
+        return keys.map((key) => key.hash);
       },
       { timeout: DELETE_TIMEOUT_MS },
     );
+    // After the commit, so a guard that misses the cache re-reads rows that are already gone. The
+    // keys stop working at once, not after the 60 s cache TTL (FR-KEY-4, SEC-API-4). One call for
+    // all keys; none, no call. Same policy as ApiKeysService.revoke: a Redis failure here surfaces
+    // as an error although the game IS deleted. A retry then answers 404 (harmless), but it cannot
+    // clear the cache any more, since the hashes went with the rows: the entries expire by TTL.
+    if (hashes.length > 0) await this.redis.del(...hashes.map(apiKeyCacheKey));
   }
 }
