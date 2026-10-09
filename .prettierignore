@@ -5,6 +5,3 @@ pnpm-lock.yaml
 **/generated
 **/prisma/migrations
 sdk/cpp/build
-docs/superpowers
-PRD.md
-.superpowers
