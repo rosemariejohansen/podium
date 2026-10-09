@@ -48,7 +48,7 @@ model User {
   githubId       String        @unique
   login          String
   avatarUrl      String?
-  createdAt      DateTime      @default(now())
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
   games          Game[]
   auditLogs      AuditLog[]
   decidedReviews ScoreReview[]
@@ -62,7 +62,7 @@ model Game {
   slug         String        @unique
   description  String?
   isPublic     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
   leaderboards Leaderboard[]
   apiKeys      ApiKey[]
   players      Player[]
@@ -84,7 +84,7 @@ model Leaderboard {
   maxScore         BigInt?
   reviewMarginPct  Int           @default(25)
   reviewMinEntries Int           @default(10)
-  createdAt        DateTime      @default(now())
+  createdAt        DateTime      @default(now()) @db.Timestamptz(3)
   scores           Score[]
   reviews          ScoreReview[]
 
@@ -99,10 +99,10 @@ model ApiKey {
   prefix     String
   hash       String     @unique
   scopes     KeyScope[]
-  expiresAt  DateTime?
-  lastUsedAt DateTime?
-  revokedAt  DateTime?
-  createdAt  DateTime   @default(now())
+  expiresAt  DateTime?  @db.Timestamptz(3)
+  lastUsedAt DateTime?  @db.Timestamptz(3)
+  revokedAt  DateTime?  @db.Timestamptz(3)
+  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
 
   @@index([gameId])
 }
@@ -113,7 +113,7 @@ model Player {
   game        Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
   externalId  String
   displayName String
-  createdAt   DateTime      @default(now())
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
   scores      Score[]
   reviews     ScoreReview[]
 
@@ -127,7 +127,7 @@ model Score {
   playerId      String
   player        Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
   value         BigInt
-  achievedAt    DateTime
+  achievedAt    DateTime    @db.Timestamptz(3)
 
   @@unique([leaderboardId, playerId])
   @@index([leaderboardId, value, achievedAt])
@@ -143,10 +143,10 @@ model ScoreReview {
   value         BigInt
   ruleCode      ReviewRule
   status        ReviewStatus @default(PENDING)
-  submittedAt   DateTime     @default(now())
+  submittedAt   DateTime     @default(now()) @db.Timestamptz(3)
   decidedById   String?
   decidedBy     User?        @relation(fields: [decidedById], references: [id], onDelete: SetNull)
-  decidedAt     DateTime?
+  decidedAt     DateTime?    @db.Timestamptz(3)
 
   @@index([leaderboardId, status])
   @@index([playerId])
@@ -163,7 +163,7 @@ model AuditLog {
   targetId   String
   ip         String?
   meta       Json
-  createdAt  DateTime    @default(now())
+  createdAt  DateTime    @default(now()) @db.Timestamptz(3)
 
   @@index([gameId, createdAt])
 }
@@ -171,7 +171,7 @@ model AuditLog {
 model RequestStat {
   gameId      String
   game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  bucket      DateTime
+  bucket      DateTime @db.Timestamptz(3)
   route       String
   statusClass String
   count       Int
