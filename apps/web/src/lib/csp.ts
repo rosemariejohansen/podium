@@ -24,11 +24,16 @@ export function buildCsp(nonce: string, isDev: boolean): string {
 /**
  * Continues the request with a per-request nonce. Next.js reads the nonce from the request's
  * CSP header and applies it to its own scripts, so every page must render dynamically.
+ * `extraRequestHeaders` are set (overwriting any value the client sent) on the request the app sees.
  */
-export function nextWithCsp(request: NextRequest): NextResponse {
+export function nextWithCsp(
+  request: NextRequest,
+  extraRequestHeaders: Record<string, string> = {},
+): NextResponse {
   const nonce = createNonce();
   const csp = buildCsp(nonce, process.env.NODE_ENV === 'development');
   const requestHeaders = new Headers(request.headers);
+  for (const [name, value] of Object.entries(extraRequestHeaders)) requestHeaders.set(name, value);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('Content-Security-Policy', csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
