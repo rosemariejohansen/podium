@@ -47,6 +47,31 @@ describe('gameCreateSchema', () => {
       false,
     );
   });
+  describe('description', () => {
+    const base = { name: 'X', slug: 'abc' };
+    it.each(['', '   ', '\t\n '])('turns the blank description %j into null', (description) => {
+      expect(gameCreateSchema.parse({ ...base, description }).description).toBeNull();
+    });
+    it('trims surrounding whitespace', () => {
+      expect(gameCreateSchema.parse({ ...base, description: 'abc ' }).description).toBe('abc');
+    });
+    it('accepts exactly 280 characters', () => {
+      const description = 'd'.repeat(280);
+      expect(gameCreateSchema.parse({ ...base, description }).description).toBe(description);
+    });
+    it('rejects 281 characters on the description path', () => {
+      const r = gameCreateSchema.safeParse({ ...base, description: 'd'.repeat(281) });
+      expect(r.success).toBe(false);
+      expect(r.error?.issues[0]?.path).toEqual(['description']);
+    });
+    it('accepts its own output: a null description parses again (web parse → API parse)', () => {
+      const once = gameCreateSchema.parse({ ...base, description: '   ' });
+      expect(gameCreateSchema.parse(once).description).toBeNull();
+    });
+    it('leaves an omitted description undefined', () => {
+      expect(gameCreateSchema.parse(base).description).toBeUndefined();
+    });
+  });
 });
 
 describe('gameUpdateSchema', () => {
@@ -56,8 +81,26 @@ describe('gameUpdateSchema', () => {
   it('rejects slug changes (FR-GAME-4)', () => {
     expect(gameUpdateSchema.safeParse({ slug: 'other' }).success).toBe(false);
   });
-  it('allows clearing the description', () => {
-    expect(gameUpdateSchema.parse({ description: null })).toEqual({ description: null });
+  describe('description', () => {
+    it('allows clearing the description', () => {
+      expect(gameUpdateSchema.parse({ description: null })).toEqual({ description: null });
+    });
+    it.each(['', '   ', '\t\n '])('turns the blank description %j into null', (description) => {
+      expect(gameUpdateSchema.parse({ description })).toEqual({ description: null });
+    });
+    it('trims surrounding whitespace', () => {
+      expect(gameUpdateSchema.parse({ description: 'abc ' })).toEqual({ description: 'abc' });
+    });
+    it('rejects 281 characters on the description path', () => {
+      const r = gameUpdateSchema.safeParse({ description: 'd'.repeat(281) });
+      expect(r.success).toBe(false);
+      expect(r.error?.issues[0]?.path).toEqual(['description']);
+    });
+    it('leaves an omitted description undefined', () => {
+      const parsed = gameUpdateSchema.parse({ name: 'New name' });
+      expect(parsed.description).toBeUndefined();
+      expect('description' in parsed).toBe(false);
+    });
   });
 });
 
