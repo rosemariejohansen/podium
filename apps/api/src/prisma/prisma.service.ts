@@ -7,7 +7,10 @@ import { PrismaClient } from '../generated/prisma/client.js';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleDestroy {
   constructor(@Inject(ENV) env: Env) {
-    super({ adapter: new PrismaPg({ connectionString: env.DATABASE_URL }) });
+    // adapter-pg sends Dates as UTC wall clock: correct only while the session TimeZone is UTC.
+    super({
+      adapter: new PrismaPg({ connectionString: env.DATABASE_URL, options: '-c TimeZone=UTC' }),
+    });
   }
 
   async onModuleDestroy(): Promise<void> {
